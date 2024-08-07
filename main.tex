@@ -1,0 +1,281 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb}
+\usepackage{hyperref}
+\usepackage{xurl}
+
+\title{Veridise divisor report review}
+\author{Cypher Stack\thanks{\url{https://cypherstack.com}}}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+This report contains a review of a divisor technique report from Veridise.
+As with any such report, it may contain errors and cannot guarantee correctness or security.
+Further, it cannot guarantee that any particular implementation of the construction is correct, secure, or suitable for intended use cases.
+
+The author asserts no warranty and disclaims liability for its use.
+The author further expresses no endorsement of any kind.
+This report has not undergone any further formal or peer review.
+
+\tableofcontents
+
+
+\section{Introduction}
+
+Work in \cite{ecip} describes applications of elliptic curve divisors and Weil reciprocity to linear combinations of elliptic curve points.
+Specifically, it shows first how to efficiently assert that a given collection of points sums to zero.
+It then describes how to assert that a given point is a linear combination of another collection of points.
+
+Veridise was engaged by the Monero community to analyze the correctness and soundness of the sum-to-zero technique in \cite{ecip}, culminating in a report\footnote{\url{https://repo.getmonero.org/-/project/54/uploads/eb1bf5b4d4855a3480c38abf895bd8e8/Veridise_Divisor_Proofs.pdf}}.
+
+This technical note examines the Veridise report.
+
+
+\subsection{Summary}
+
+In general, we find that the report provides additional or different formal backing to aspects of the sum-to-zero technique, either referring the reader to known results or proving them.
+
+Overall, we have confidence in the general approach taken in \cite{ecip} and analyzed in the report.
+However, we caution that the findings in this technical note highlight the subtlety of the analysis, and the challenge of producing a secure implementation of the sum-to-zero technique.
+
+While we refer the reader to the more detailed findings below, we highlight several observations of note:
+
+\textbf{Lack of protocol specification.}
+We find that the report, like the original work in \cite{ecip}, does not describe a complete interactive protocol in detail, instead providing building blocks and indicating claims that a prover must make to a verifier.
+This makes it challenging for the reader to fully assess claims about properties (like soundness or zero knowledge) associated with such a protocol.
+
+\textbf{Inconsistent probability bounds.}
+Several results in the report provide probability bounds that are used to assert the negligibility of certain events.
+However, the report is often vague about the conditioning of these probabilities, and transitions between standalone results and assumptions about how an interactive protocol would involve sampling of values that are presumably used in the results.
+This makes it challenging to reason about how different results interact in valid ways.
+
+Further, the report passes probability bounds between results frequently, which is common for evaluating certain likelihoods arising in broader protocols.
+There are cases, however, where it merely indicates that some bounds are negligible, and treats them effectively as zero.
+In other cases, it uses order estimates as bounds.
+This type of inconsistency is unlikely to affect results in practice.
+Nevertheless, the establishment of such bounds is an large portion of the formalization in the report, and this makes it further challenging to reason about result interactions and associated probabilities in a consistent way.
+
+\textbf{Incomplete detail.}
+Theorem 11 in the report establishes a particular soundness result.
+It does so by bounding the probability of certain events as negligible by examining several cases.
+We find that the proof of this theorem lacks sufficient detail to be convincing as written.
+
+Separately, Section 6 of the report describes the use of logarithmic derivatives.
+Specifically, it purports to show how to derive a specific equation in \cite{ecip}.
+We find that this section does not provide sufficient detail to justify the assertion that the claimed equation follows.
+
+
+\section{Findings}
+
+
+\subsection{Lack of direct protocol specification}
+
+The report does not specify complete protocols directly, either in an interactive or non-interactive manner.
+This is only done in \cite{ecip} informally, incompletely, and with little detail about the nature of prover and verifier interaction or the requirements for a non-interactive protocol.
+
+The report indicates at several points certain values intended to be sampled randomly, with the intent of functioning as verifier challenges that would be used in an interactive protocol.
+Such challenges are critical, as they allow for the use of Fiat-Shamir techniques to produce non-interactive protocols and can be important for analysis of properties associated to such protocols.
+However, the report does not always make clear the precise role of these challenges during prover and verifier interaction.
+Because the analysis relies on different sampling methods, we consider clarity especially important.
+
+The protocols are also not presented with specification about relevant relations.
+It is common to present interactive protocols with respect to Camenisch-Stadler-type relations, which make clear the role of fixed parameters, public statements, and secret witness values.
+This is most frequently used for protocols intended to be arguments of knowledge, but has relevance for other properties like completeness and zero knowledge.
+
+The lack of relations or protocols presented explicitly makes it challenging to assess properties like soundness and zero knowledge, where it is important to know precisely how a prover and verifier interact over multiple rounds of communication.
+Further, it can hinder safe implementation.
+The use of Fiat-Shamir techniques for non-interactive transformations employs a transcript that binds protocol parameters, statement data, and prover messages into challenges in an iterative fashion.
+Misuse of the technique may result in catastrophic failure that can break soundness \cite{fs, weak_fs}.
+It is generally easier to produce safe implementations when relations and protocols are specified in detail using standard presentations.
+
+The report does not indicate the properties required of a circuit proving system to instantiate the sum-to-zero technique.
+In \cite{ecip}, it is briefly mentioned that ``any proof system for arithmetic circuits'' may be used.
+The precise definition of such circuits (or the relations they are required to represent) is not provided.
+Further, it is expected that soundness of such a proving system is required for the overall protocol to be sound in practice, but this is not discussed.
+
+
+\subsection{Theorem 2}
+
+Theorem 2 in the report provides a bound on a certain field norm vanishing.
+
+The statement of the theorem introduces a function $D$, but does not indicate its set membership.
+Rather, this is introduced earlier, where it is assumed that $D \in \mathbb{F}_q(E)$.
+However, the use of $D \in \operatorname{Div}(E)$ as a principal divisor in other notation introduces some ambiguity, as there is a correspondence implied in the report (and described in \cite{ecip}) between principal divisors of $E$ and elements of the function field $\mathbb{F}_q(E)$.
+Clarity within the statement of the theorem, and indeed throughout the remainder of the report, would be useful to avoid ambiguity and ensure that each presented result stands independently.
+
+The statement of the theorem makes a claim about the bound of a probability relating to the following vanishing:
+$$N_{\mathbb{F}_q(E) / \mathbb{F}_q(z)}(D)(z(P)) = 0$$
+However, it does not state on what the probability is conditioned, nor define $z$.
+Prior to the statement, narrative indicates that $z$ is sampled uniformly at random, suggesting the probability is conditioned on this sampling.
+However, it also indicates that instead, a value $\lambda$ is sampled uniformly at random; then, $z = y - \lambda x$ is defined using this.
+The proof of the theorem does this sampling, but it would be useful to make this more clear, especially because of the presumption that the broader interactive protocol has the verifier conduct this sampling.
+
+It is also the case that a point $P \in E(\mathbb{F}_q)$ is used to establish the vanishing.
+However, it is not specified in the statement or proof if or when this value is fixed in advance; indeed, only after the proof is it noted that $P$ is an ``arbitrary'' point, and that it is ``committed''.
+
+
+\subsection{Theorem 3}
+
+Theorem 3 in the report provides a bound on a certain field norm factorization.
+
+The narrative preceding the theorem indicates that the verifier sample $\mu \in \mathbb{F}_q$ and evaluate the product
+$$\prod_{i=1}^N c(z - z(P_i))$$
+at $\mu$.
+It is later made more clear in the proof of the theorem that this evaluation is at $z = \mu$, treating the product as a polynomial in $z$:
+$$\prod_{i=1}^N c(\mu - z(P_i))$$
+However, this is initially unclear as stated.
+
+The narrative also indicates that a prover must provide a monic function $D$, claiming this is because of the form of the ``right-hand side''.
+This reference is unclear.
+It likely is intended to refer to the right-hand side of Equation (1) in the report:
+$$N_{\mathbb{F}_q(E) / \mathbb{F}_q(z)}(D)(\mu) = \prod_{i=1}^N (\mu - z(P_i))$$
+Clarification to the reader would be helpful.
+
+
+\subsection{Lemma 4}
+
+Lemma 4 in the report provides a bound on the probability of a certain elliptic curve line intersection.
+
+The statement of the lemma requires a random sampling of points $A_0, A_1 \in E(\mathbb{F}_q) \setminus \mathcal{O}$ that are not the point at infinity.
+However, the narrative introducing the lemma requires only that $A_0, A_1 \in E(\mathbb{F}_q)$, which is less restrictive.
+
+It is also the case that for $A_1 = -A_0$, the resulting value $\lambda$ is undefined as the interpolating line is vertical.
+This is addressed later, but not in the lemma.
+
+While in practice it would only be the case that sampling yields $A_0 = \mathcal{O}$ or $A_1 = \mathcal{O}$ with negligible probability, this is not the case for general $E(\mathbb{F}_q)$, and so it would be useful to be consistent throughout.
+
+The statement of the lemma bounds the probability in question by
+$$\frac{2}{\# E(\mathbb{F}_q) - 2}.$$
+However, the reasoning of the proof provides a tighter bound of
+$$\frac{2}{\# E(\mathbb{F}_q) - 1}$$
+instead.
+In practice this difference is irrelevant since $q \gg 1$ for applications of interest, but this is not a requirement for the lemma.
+
+
+\subsection{Lemma 5}
+
+Lemma 5 in the report bounds the probability of a certain intersection of the support of a witness function.
+
+The statement of the lemma introduces the intersection set $\{ A_0, A_1, A_2 \}$, but does not define it.
+It also does not specify on what the probability is conditioned.
+
+The narrative introducing the lemma suggests that $A_0$ and $A_1$ be randomly sampled, and the previous lemma's narrative further suggests that $A_2$ be defined as the unique rational point intersecting the curve on the line interpolating $A_0$ and $A_1$.
+
+The proof of the lemma claims that the probability of each of the events $A_0 = \mathcal{O}$, $A_1 = \mathcal{O}$, and $A_0 + A_1 = \mathcal{O}$ occurring is $1\, \# E(\mathbb{F}_q)$, notation that is undefined.
+It is of course trivially the case that the probability that any randomly-sampled point be the point at infinity is $1 / \# E(\mathbb{F}_q)$.
+And because the sampling can presumably yield $A_0 = A_1$ (replacement is permitted), it is also the case that the probability of sampling a pair of points summing to the point at infinity is also $1 / \# E(\mathbb{F}_q)$.
+
+The proof establishes the final bound using Boole's union bound inequality, which in this case bounds the overall probability by
+$$3 \left( \frac{1}{\# E(\mathbb{F}_q)} \right) + 3 \left( \frac{N}{\# E(\mathbb{F}_q)} \right) = \frac{3(N + 1)}{\# E(\mathbb{F}_q)}$$
+via simple summation of the corresponding probabilities, which is then claimed to be negligible.
+This claim is certainly the case in practice, given that $N \ll \# E(\mathbb{F}_q)$ and $q \gg 1$ for expected use cases.
+However, this is not given as a requirement in the statement of the lemma.
+
+
+\subsection{Theorem 6}
+
+Theorem 6 in the report modifies Theorem 2 to use the result of Lemma 4, assuming the support intersection in Lemma 5 does not occur.
+
+The proof begins by claiming that the defined line $L$ has a well-defined slope (that is, the line is not vertical) since $A_0, A_1 \neq \mathcal{O}$ and $A_0 \neq A_1$.
+However, the latter condition is not guaranteed, and does not lead to the claim.
+Instead, it is the case by hypothesis that $A_0 \neq -A_1$.
+This is likely what was intended in the proof.
+
+The statement of Lemma 4 requires that the points $A_0, A_1 \in E(\mathbb{F}_q) \setminus \mathcal{O}$ be randomly sampled.
+However, the statement of the theorem adds additional restrictions to these points.
+As noted in the narrative preceding the theorem, this is done on the assumption that in an interactive protocol, the verifier can simply resample if the conditions are not met, and that this occurs in practice with negligible probability.
+However, it does mean that the conditions for Lemma 4 are not strictly satisfied as stated.
+
+The proof observes that for each of $N$ possible values for a line slope, the corresponding probability from Lemma 4 is bounded by $2 / (\# E(\mathbb{F}_q) - 2)$.
+It then notes that the total probability (across all $N$ values) is then bounded by $2 N / (\# E(\mathbb{F}_q) - 1)$.
+The former is the weaker bound given in the statement of Lemma 4, while the latter appears to use the tighter bound implied by the proof of Lemma 4.
+It is not clear why this reasoning must hold, and why the tighter bound is not used consistently.
+
+
+\subsection{Lemma 7}
+
+Lemma 7 in the report shows that a particular function relating to an algebraic surface is well defined.
+
+In the narrative preceding the lemma, it is stated that the points $\{ P_i \}_{i=1}^N$ and the value $D$ are ``committed to`` in a manner that fixes $\{ Q_i \}_{i=1}^N$ and the corresponding values in each tuple $( x(P_i), y(P_i), x(Q_i), y(Q_i) )_{i=1}^N$.
+As was the case previously, the precise nature of this commitment is not directly specified.
+Presumably, this hints to a Fiat-Shamir transformation used to establish $\lambda$ and $\mu$ via $A_0$ and $A_1$; however, it is important that this be described unambiguously.
+Further, it may be useful to remind the reader why a commitment to $D$ is sufficient as a binding commitment to $\{ Q_i \}_{i=1}^N$.
+
+In the statement of the lemma, conditions on the function $f$ are not provided, implicitly referring the reader to the narrative.
+It would be preferable to make such conditions clear in the statement.
+
+
+\subsection{Lemma 8}
+
+Lemma 8 in the report shows a non-vanishing condition for the function examined in Lemma 7.
+
+The narrative leading up to the lemma states that the points $A_0, A_1$ are considered to be sampled randomly in $(E \times E)(\mathbb{F}_q)$.
+However, previously it is stated that $A_0 \neq \pm A_1$, making this sampling claim slightly incorrect.
+It is also stated previously that the likelihood of such equality occurring is negligible.
+This holds in practice for $q \gg 1$, but not necessarily in general.
+
+There is a typo ``non'' in the proof of the lemma presumably intended to read ``none'' instead.
+
+The proof makes an assumption, claimed to be without loss of generality, that the coefficient of $P_1$ is greater than that of $Q_1$, swapping roles if necessary.
+It is the case that in the definition of $f$ provided in the narrative preceding Lemma 7, the first product (in terms of $\{ Q_i \}_{i=1}^N$) and the second product (in tersm of $\{ P_i \}_{i=1}^N$) differ only in sign; however, this means that $f$ is not symmetric with respect to these values.
+There is additional complexity as well.
+It is the case by assumption that $\{ P_i \}_{i=1}^N \subset \mathbb{F}_q$.
+However, the proof of Lemma 7 directly establishes only that each constituent product in the definition of $f$ is defined in $\mathbb{F}_q$; it is not otherwise specifically shown that $\{ Q_i \}_{i=1}^N \subset \mathbb{F}_q$.
+This means it is unclear that the coefficient claim in the proof of the lemma is indeed without loss of generality.
+
+The phrasing ``We can a suitable power of the quadratic factor'' in the proof is unclear, as is its intended context.
+
+
+\subsection{Theorem 10}
+
+Theorem 10 in the report establishes a norm-related probability bound indicated to be a soundess result.
+
+There is a typo ``a an'' in the statement of the theorem.
+
+There is an implicit requirement $N \ll q$ implied for the result to hold, but it is not specified.
+
+The proof and preceding narrative indicate that the result establishes a form of soundness, and that the bounded probability represents a corresponding soundness error.
+However, as the overall protocol is not directly specified, the nature of this soundness is effectively unspecified.
+
+The probability bound in the proof is given, and then recast as an estimate $18N/q$.
+However, this is done informally, noting that the Hasse bound gives an order estimate for $\# E(\mathbb{F}_q)$, but then retaining the constant factor $18N$ in the estimate.
+Notably, the final estimate is no longer necessarily a bound due to this informality; however, it is used later as such.
+It may be simpler and more accurate merely to indicate the negligibility that results if $N \ll q$.
+
+
+\subsection{Theorem 11}
+
+Theorem 11 in the report bounds certain conditions with negligible probability, assuming a loosening of conditions imposed by Theorem 10.
+
+There is a typo ``a an'' in the statement of the theorem.
+
+The probability bound given in the proof of the theorem for the first case for the vanishing of $f$ is $18 N_1 q$.
+Similarly to the proof of Theorem 10, the proof of the theorem uses the Hasse bound to establish an order estimate of $q^2$ for the number of allowable pairs of the form $(A_0, A_1)$, and then states that the overall probability bound is therefore bounded by $18 N_1 / q$.
+This is incorrect, as the use of the Hasse order estimate renders the claim of a bound invalid.
+The overall result of negligibility does hold, since the case assumes that $N_1 \ll q$.
+
+The proof of the second case informally relies on Lemma 8 and Theorem 10 for its claimed negligibility result, but details are not provided.
+They would be useful in this case, given that Theorem 11 is intended in part to relax restrictions imposed by Theorem 10.
+
+The proof of the third case uses phrasing ``If the divisors $(D)_0$ and $\sum_{i=1}^{N_1} P_i$ but the leading coefficient of $D$ does not give a monic polynomial when taking the norm'' that is unclear.
+
+
+\subsection{Section 6}
+
+Section 6 in the report describes how to derive Equation (1) in \cite{ecip} relating to the use of logarithmic derivatives.
+
+It does not appear that the intermediate derivative computations produced in the report give sufficient insight into the claimed explanation of the cited equation; indeed, there appear to be several leaps that, like in \cite{ecip}, are merely left to the reader.
+This is not particularly helpful.
+
+It is also not specified in the report how a prover would specifically construct a proof using the logarithmic derivative approach, or directly modify the techniques presented earlier.
+Indeed, in \cite{ecip}, this is only hinted at by stating claims that a prover ``would show'' without detail.
+The report does not provide additional insight into this.
+
+
+\bibliographystyle{plain}
+\bibliography{main}
+
+\end{document}
